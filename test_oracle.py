@@ -1,156 +1,143 @@
-# --------------------------------------------------------------------------------
-# --- распределение очередей, график вынесен в функцию---
-# --------------------------------------------------------------------------------
-from pulp import LpMinimize, lpSum, LpProblem, LpVariable,LpBinary, LpStatus, value
-import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
-# загрузка из xls
-file_path = 'plan_data.xlsx'
-df = pd.read_excel(file_path, sheet_name='jobs')
-# -------список работ ['J1', 'J2',....]-------(C)
-list_jobs = df.iloc[:, 0].tolist() 
-
-df = pd.read_excel(file_path, sheet_name='tasks')
-# -------Формирование словаря задач-------(tasks)
-TASKS = {}
-for index, row in df.iterrows():
-    jid = row['jid']
-    resurs = row['resurs']
-    work_time = row['work_time']
-    # Создаем вложенный словарь, если jid еще не существует в результирующем словаре
-    if jid not in TASKS:
-        TASKS[jid] = {}
-    # Добавляем resurs и work_time в вложенный словарь
-    TASKS[jid][resurs] = work_time
-
-print(TASKS)
-# ------Список ресурсов----
-resours = df.drop_duplicates(subset=['resurs']) 
-res = resours['resurs'].tolist()
-#------------
-
-def solve_model(): # Описание модели
-    # Инициализация модели
-    model = LpProblem("optimalPlan", LpMinimize)
-
-    #Вспомогательные переменные
-    jobs = list(TASKS.keys())# Список работ (job1, job2, ...)
-    machines = set(machine for job in TASKS.values() for machine in job.keys()) # Все машины [R1, R2, R3]
-    task_list = [(job, machine) for job, machine in TASKS.items() for machine in machine.keys()] # Список пары job, machine (job1, R1), (job2, R1)...
-    
-    #Длительность задачи
-    durations = {(job,machine):time for job,machines in TASKS.items() for machine,time in machines.items()}# Словарь типа {(job1, R1):10, (job2, R1):20}
-    
-    #Верхняя граница = сумма всех time (10+20+30...)
-    upper_bound = sum(durations.values())
-    
-    
-    #---------------------------------- Инициализация переменных----------------------------
-    completion_times = LpVariable.dicts("completion", TASKS.keys(), lowBound=0, cat='Integer') # Переменные времени завершения
-    start_time = LpVariable.dicts("StartTime", TASKS.keys(), lowBound=0,upBound=upper_bound, cat = "Integer") 
-    #start_times = LpVariable.dicts("StartTime", task_list, lowBound=0,upBound=upper_bound, cat = "Integer") # Время начала работы. Словарь, где ключи - пары (job, machine), а значения = LpVariable
-    
-
-    #---------------------------------- Построение целевой функции -------------------------------------------
-    model += lpSum(completion_times[t] for t in TASKS)
-
-    #-----------------------------------Ограничения-----------------------------------------------------------
-
-    # -------Ограничение по последовательности -----
-    df = pd.read_excel(file_path, sheet_name='constr') # открываем df с ограничениями (jid - ограничение, jid_in - ограничение входящее в jid)
-    i=0 # переменная для формирования имени ограничения
-    for index, row in df.iterrows(): # цикл по df
-        model += completion_times[row['jid_prev']] <= start_time[row['jid_cur']], f'lim_line_{i}'
-        i+=1
-    #-------------------------------------------------------------------------------------------
-    # ---------Ограничение что время завершения должно быть равно заданному времени---------------------------
-    t_total =0 # сумарное время выполнения всех операций
-    for task, options in TASKS.items(): # цикл по tasks
-        resource_time = list(options.values())[0]  # Получаем время выполнения выбранной операции
-        t_total += resource_time
-        model += completion_times[task] == start_time[task] + resource_time, f'lim_time_{task}'
-    # ---------------------тест ограничений-----------------------------
-    # # Ограничения на машины (дизъюнктивное ограничение)
-    # for machine in machines:
-    #     #Найти все задачи, которые используют одну и ту же машину
-    #     machine_tasks = [(job,m) for job, m in task_list if m ==machine]
-    #     for i, (j1,m1) in enumerate(machine_tasks):
-    #         for j2, m2 in machine_tasks[i+1:]:
-    #             #Бинарная переменная для задания порядка выполнения задач
-    #             y =LpVariable(f"Order_{j1}_{m1}_before_{j2}_{m2}", cat = LpBinary)
-    #             #Либо j1 выполняется перед j2 либо наоборот
-    #             model += start_times[j1,m1]+durations[j1,m1] <= start_times[j1, m2]+ upper_bound*(1-y)
-    #             model += start_times[j2,m2]+ durations[j2,m2]<= start_times[j1, m1]+ upper_bound*y
-            
-     # Группируем работы по ресурсам 
-    resources_to_jobs = {}
-    for jid, resources in TASKS.items():
-        for time in resources.keys():
-            if time not in resources_to_jobs:
-                resources_to_jobs[time] = []
-            resources_to_jobs[time].append(jid)
-    #Добавляем дизъюнктивные ограничения
-    # last_key = next(reversed(resources_to_jobs))
-    for r, job_list in resources_to_jobs.items():
-        for i in range (len(job_list)):     
-            for j in range(i+1, len(job_list)):
-                #Бинарная переменная для задания порядка выполнения задач
-                y =LpVariable(f"Order_{i}_before_{j}", cat = LpBinary)
-                jid1 = job_list[j]
-                jid2 = job_list[i]
-                model+= start_time[jid1] +completion_times[jid1]<=start_time[jid2] + upper_bound*(1-y)
-                model+= start_time[jid2] + upper_bound*y>=start_time[jid1]+completion_times[jid1]
-        # if i == len(job_list)-1:
-        #     model+= start_times[job_list[i]]>=start_times[job_list[0]]+completion_times[job_list[0]]
-            
-            
-    print(resources_to_jobs)      
+import getpass
+from matplotlib import pyplot as plt
+import oracledb
+from pulp import LpBinary, LpVariable, LpProblem, lpSum, LpStatus, LpMinimize, PULP_CBC_CMD
 
 
-        
+oracledb.init_oracle_client(lib_dir = "C:\instanclient\instantclient_19_25")
 
-    # ----------Сохранение задачи в файл-----------------------------------------------------------------------
-    model.writeLP("planModel.lp")
+connection = oracledb.connect(
+    user="AMR",
+    password="AMR",
+    dsn = "10.124.12.2:1521/db1p"
+    )
 
-    # ----------Решение----------------------------------------------------------------------------------------
-    model.solve()
-    return(model)
+print("Successfully connected to Oracle Database")
 
-solve1 = solve_model()
-# Проверяем статус модели
-print(LpStatus[solve1.status])
+cursor = connection.cursor()
 
-# Значение целевой функции после решения задачи
-obj_value = value(solve1.objective)
-obj_value = int(obj_value)  # Преобразование в целочисленное значение
+cursor.execute("SELECT job, machine, duration FROM OPTIMIZATION_TASKS")
 
-print(f"Минимальное время выполнения всех операций = {obj_value}")
-# ---Вывод переменных
-for v in solve1.variables():
-    print(v.name, "=", v.varValue)
+rows = cursor.fetchall()
 
-# # Вывод графика распределения операций
-# def plot_schedule ():
-#     for c in list_jobs: # Определяем длинну линии по старту и завершению операции циклом по списку всех операций
-#         for i in solve1.variables(): # Цикл по переменным модели
-#             if i.name.startswith(f"start_" + c): # проверяем имя переменной на начало операции (в с указан id операции J1,J2...Jn)
-#                 x1 = i.varValue # Если да то присваиваем координату x1
-#             if i.name.startswith(f"completion_" + c): # Прверяем имя переменной на завершение операции
-#                 x2 = i.varValue # Если да то присваиваем координату x2
-#                 y  = int(list(TASKS.get(c))[0][1:]) # Определяем ресурс и записываем в координату y (срезаем "R")
-#     # --------
-#         plt.plot([x1, x2], [y, y],  marker='d', linewidth=5, markersize=10)# Рисуем линию с маркерами
-#         # добавляем подпись с кодом операции (J)
-#         mid_x = (x1 + x2) / 2  # X-координата для подписи
-#         mid_y = (y + y) / 2  # Y-координата для подписи
-#         plt.text(mid_x, mid_y, c, fontsize=10, ha='center', va='center') 
-#     # -------   
-#     plt.xlim (0,100)  # (0, obj_value+1)  -- ограничение графика по оси X
-#     plt.yticks(np.arange(0, len(resours)+2, 1.0)) # ограничение оси Y
-#     plt.title = (f"Минимальное время выполнения всех операций ")
-#     plt.grid()
-#     plt.show()
-   
-# plot_schedule()
+tasks = {}
 
+
+for row in rows:
+    job, machine, duration = row
+    tasks[(job, machine)] = duration
+
+
+cursor.execute("SELECT job_cur, job_prev FROM OPTIMIZATION_CONSTR")
+
+rows = cursor.fetchall()
+
+constraints = []
+
+for row in rows:
+    job_cur, job_prev = row
+    constraints.append((job_cur, job_prev))
+
+print(tasks)
+print(constraints)
+
+cursor.close()
+connection.close()
+
+
+
+
+#Создание задачи минимизации
+model = LpProblem("Optimisation", LpMinimize)
+
+#Список работ и машин
+jobs = set(job for job, machine in tasks.keys())
+machines = set(machine for job,machine in tasks.keys())
+
+
+#Переменные: время начала и конца выполнения для каждой работы
+start =LpVariable.dicts("start", jobs, lowBound=0, cat="Integer")
+end = LpVariable.dicts("end", jobs, lowBound=0,cat="Integer")
+
+# Переменная для завершения времени каждой машины
+machine_completion = LpVariable.dicts("mahine_completion", machines, lowBound=0, cat="Integer")
+
+#Переменная для порядка выполнениея работ на одной машине
+order = LpVariable.dicts("order", [(job1, job2, machine1)for job1, machine1 in tasks.keys() for job2,machine2 in tasks.keys() if machine1 == machine2
+                                   and job1!=job2], cat=LpBinary)
+
+#Зависимости между работами 
+for job1, job2 in constraints:
+    model += start[job1]>=end[job2]
+
+#Конец выполнения = начало выполнения + время выполнения
+for job,machine in tasks.keys():
+    model += end[job] == start[job] + tasks[(job, machine)]
+
+#Ограничение на порядок выполнения работ на одной машине
+for machine in machines:
+    #Список работ, выполняющихся на этой машине
+    machines_tasks = [(job, m) for job, m in tasks.keys() if m == machine]
+    #Для каждой пары работ на одной машине, добавляем ограничение
+    for i , (job1, m1) in enumerate(machines_tasks):
+        for j, (job2,m2) in enumerate(machines_tasks[i+1:]):
+            #Добавляем ограничения: если job1 выполняется раньше, чем job2 и наоборот
+            model+= start[job1]+ tasks[(job1,machine)] <= start[job2] + (1-order[job1, job2,machine])*1e6
+            model+= start[job2]+ tasks[(job2,machine)] <= start[job1] + order[job1,job2,machine]*1e6
+    #Ограничение для времени завершения машины: machine_completion >=  завершение всех задач на машине
+    for job, m in machines_tasks:
+        model+= machine_completion[machine]>= end[job]
+
+
+#Целевая функция 
+model+= lpSum(machine_completion[machine]for machine in machines)
+
+
+#Решение модели
+model.solve(PULP_CBC_CMD(timeLimit = 60))
+print(LpStatus[model.status])
+
+#Получение времени начала и кончания работ
+start_times = {job:start[job].value() for job in jobs}
+end_times = {job:end[job].value() for job in jobs}
+
+for job in jobs:
+    print(f"job {job}: start = {start_times[job]}, end = {end_times[job]}")
+
+#Построение графика
+fig, ax =plt.subplots(figsize=(10,6))
+
+#Добавляем задачи на график
+for machine in sorted(machines):
+    machines_tasks = [(job, m) for job, m in tasks.keys() if m == machine]  
+    for job,m in machines_tasks:
+        # ax.plot( [start_times[job], end_times[job] ], # интервал времени
+        #         [machine,machine], # ось у - машина
+        #         linewidth = 6,
+        #         label = f"{job}")
+
+        ax.barh(
+            machine,
+            end_times[job] - start_times[job],
+            left=start_times[job],
+            height=0.25,
+            label = f"{job}"
+        )
+        #Добавляем надписи к названиям работ
+        ax.text(
+            (start_times[job]+end_times[job])/2, #центр интервала
+            machine,
+            job,
+            ha = "center",
+            va = "center",
+            color = "black",
+            fontsize = 12
+        )
+
+
+ax.set_xlabel("Время выполнения")
+ax.set_ylabel("Ресурсы")
+ax.set_xticks(range(0, int(max(end_times.values())) +5, 5))
+ax.set_yticks(sorted(machines))
+ax.grid(True, axis='x')
+plt.show()
