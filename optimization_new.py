@@ -3,8 +3,8 @@ from pulp import  PULP_CBC_CMD, LpProblem, LpStatus, LpVariable, LpBinary,LpMini
 import matplotlib.pyplot as plt
 
 #Чтение Excel файла
-tasks_df = pd.read_excel("plan_data.xlsx", sheet_name="tasks")
-constr_df = pd.read_excel("plan_data.xlsx", sheet_name = "constr")
+tasks_df = pd.read_excel("plan_data_new.xlsx", sheet_name="tasks")
+constr_df = pd.read_excel("plan_data_new.xlsx", sheet_name = "constr")
 
 #Преобразование данных в подходящий формат
 tasks = {(row['job'], row['machine']): row['duration'] for _, row in tasks_df.iterrows()} #{(j1, r1): d1}
@@ -65,8 +65,8 @@ print(LpStatus[model.status])
 start_times = {job:start[job].value() for job in jobs}
 end_times = {job:end[job].value() for job in jobs}
 
-# for job in jobs:
-#     print(f"job {job}: start = {start_times[job]}, end = {end_times[job]}")
+for job in jobs:
+    print(f"job {job}: start = {start_times[job]}, end = {end_times[job]}")
 
 
 #Построение графика
