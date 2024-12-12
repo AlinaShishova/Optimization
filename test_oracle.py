@@ -94,7 +94,7 @@ model+= lpSum(machine_completion[machine]for machine in machines)
 
 
 #Решение модели
-model.solve(GLPK())
+model.solve(PULP_CBC_CMD(timeLimit=60))
 print(LpStatus[model.status])
 
 #Получение времени начала и кончания работ
