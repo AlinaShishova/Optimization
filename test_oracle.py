@@ -1,7 +1,7 @@
 import getpass
 from matplotlib import pyplot as plt
 import oracledb
-from pulp import LpBinary, LpVariable, LpProblem, lpSum, LpStatus, LpMinimize, PULP_CBC_CMD
+from pulp import LpBinary, LpVariable, LpProblem, lpSum, LpStatus, LpMinimize, PULP_CBC_CMD, GLPK, SCIP, CHOCO_CMD
 
 
 oracledb.init_oracle_client(lib_dir = "C:\instanclient\instantclient_19_25")
@@ -94,7 +94,7 @@ model+= lpSum(machine_completion[machine]for machine in machines)
 
 
 #Решение модели
-model.solve(PULP_CBC_CMD(timeLimit = 60))
+model.solve(GLPK())
 print(LpStatus[model.status])
 
 #Получение времени начала и кончания работ
