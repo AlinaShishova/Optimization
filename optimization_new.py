@@ -1,15 +1,18 @@
 import pandas as pd
-from pulp import  PULP_CBC_CMD, LpProblem, LpStatus, LpVariable, LpBinary,LpMinimize, lpSum
+from pulp import  PULP_CBC_CMD, LpProblem, LpStatus, LpVariable, LpBinary,LpMinimize
 import matplotlib.pyplot as plt
 
 #Чтение Excel файла
 tasks_df = pd.read_excel("plan_data_new.xlsx", sheet_name="tasks")
 constr_df = pd.read_excel("plan_data_new.xlsx", sheet_name = "constr")
+downtime_df = pd.read_excel("plan_data_new.xlsx", sheet_name = "downtime")
 
 #Преобразование данных в подходящий формат
 tasks = {(row['job'], row['machine']): row['duration'] for _, row in tasks_df.iterrows()} #{(j1, r1): d1}
 constraints = [(row['job_cur'], row['job_prev']) for _, row in constr_df.iterrows()] # (job1, job2)
 
+#Ограничения на начало (например, r1 простаивает с 10 до 20 )
+downtime = {row['machine']:(row['dt_start'], row['dt_end']) for _, row in downtime_df.iterrows()} #{R1: (10, 20)}
 
 #Создание задачи минимизации
 model = LpProblem("Optimisation", LpMinimize)
@@ -30,6 +33,10 @@ machine_completion = LpVariable.dicts("mahine_completion", machines, lowBound=0,
 order = LpVariable.dicts("order", [(job1, job2, machine1)for job1, machine1 in tasks.keys() for job2,machine2 in tasks.keys() if machine1 == machine2
                                    and job1!=job2], cat=LpBinary)
 
+#Переменные для выбора начала работы до или после простоя
+#
+#
+
 #Зависимости между работами 
 for job1, job2 in constraints:
     model += start[job1]>=end[job2]
@@ -48,13 +55,15 @@ for machine in machines:
             #Добавляем ограничения: если job1 выполняется раньше, чем job2 и наоборот
             model+= start[job1]+ tasks[(job1,machine)] <= start[job2] + (1-order[job1, job2,machine])*1e6
             model+= start[job2]+ tasks[(job2,machine)] <= start[job1] + order[job1,job2,machine]*1e6
-    # #Ограничение для времени завершения машины: machine_completion >=  завершение всех задач на машине
-    # for job, m in machines_tasks:
-    #     model+= machine_completion[machine]>= end[job]
 
+# #Условие, чтобы работы начинались позже времени простоя
+# for machine, (dt_start, dt_end) in downtime.items():
+#     for job,m in tasks.keys():
+#         if m == machine :
+#             model+= start[job]<=dt_start
+#             # model+= start[job]>=dt_end
 
 # #Целевая функция 
-# model+= lpSum(machine_completion[machine]for machine in machines)
 model += sum(end[job]for job in jobs)
 
 #Решение модели
