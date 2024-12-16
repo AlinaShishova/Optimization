@@ -48,14 +48,14 @@ for machine in machines:
             #Добавляем ограничения: если job1 выполняется раньше, чем job2 и наоборот
             model+= start[job1]+ tasks[(job1,machine)] <= start[job2] + (1-order[job1, job2,machine])*1e6
             model+= start[job2]+ tasks[(job2,machine)] <= start[job1] + order[job1,job2,machine]*1e6
-    #Ограничение для времени завершения машины: machine_completion >=  завершение всех задач на машине
-    for job, m in machines_tasks:
-        model+= machine_completion[machine]>= end[job]
+    # #Ограничение для времени завершения машины: machine_completion >=  завершение всех задач на машине
+    # for job, m in machines_tasks:
+    #     model+= machine_completion[machine]>= end[job]
 
 
-#Целевая функция 
-model+= lpSum(machine_completion[machine]for machine in machines)
-
+# #Целевая функция 
+# model+= lpSum(machine_completion[machine]for machine in machines)
+model += sum(end[job]for job in jobs)
 
 #Решение модели
 model.solve(PULP_CBC_CMD(timeLimit = 60))
