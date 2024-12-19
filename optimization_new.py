@@ -12,30 +12,30 @@ tasks = {(row['job'], row['machine']): row['duration'] for _, row in tasks_df.it
 constraints = [(row['job_cur'], row['job_prev']) for _, row in constr_df.iterrows()] # (job1, job2)
 
 #Ограничения на начало (например, r1 простаивает с 10 до 20 )
-downtime = {row['machine']:(row['dt_start'], row['dt_end']) for _, row in downtime_df.iterrows()} #{R1: (10, 20)}
+downtime = {(row['job'],row['machine']):(row['duration'], row['dt_start'], row['dt_end']) for _, row in downtime_df.iterrows()} #{(DT1, R1): (10, 10, 20)}
+
+# Добавть простои в виде job
+downtime1 = {key:value[0] for key, value in downtime.items()}
+tasks.update(downtime1)
 
 #Создание задачи минимизации
 model = LpProblem("Optimisation", LpMinimize)
 
 #Список работ и машин
 jobs = set(job for job, machine in tasks.keys())
-machines = set(machine for job,machine in tasks.keys())
+machines = set(machine for job, machine in tasks.keys())
 
 
 #Переменные: время начала и конца выполнения для каждой работы
 start =LpVariable.dicts("start", jobs, lowBound=0, cat="Integer")
 end = LpVariable.dicts("end", jobs, lowBound=0,cat="Integer")
 
-# Переменная для завершения времени каждой машины
-machine_completion = LpVariable.dicts("mahine_completion", machines, lowBound=0, cat="Integer")
 
 #Переменная для порядка выполнениея работ на одной машине
 order = LpVariable.dicts("order", [(job1, job2, machine1)for job1, machine1 in tasks.keys() for job2,machine2 in tasks.keys() if machine1 == machine2
                                    and job1!=job2], cat=LpBinary)
 
-#Переменные для выбора начала работы до или после простоя
-#
-#
+
 
 #Зависимости между работами 
 for job1, job2 in constraints:
@@ -56,12 +56,11 @@ for machine in machines:
             model+= start[job1]+ tasks[(job1,machine)] <= start[job2] + (1-order[job1, job2,machine])*1e6
             model+= start[job2]+ tasks[(job2,machine)] <= start[job1] + order[job1,job2,machine]*1e6
 
-# #Условие, чтобы работы начинались позже времени простоя
-# for machine, (dt_start, dt_end) in downtime.items():
-#     for job,m in tasks.keys():
-#         if m == machine :
-#             model+= start[job]<=dt_start
-#             # model+= start[job]>=dt_end
+# Простои
+for (job, machine), (duration, dt_start, dt_end) in downtime.items():
+    model+= start[job] >= dt_start
+    model+=end[job]<=dt_end
+
 
 # #Целевая функция 
 model += sum(end[job]for job in jobs)
@@ -69,6 +68,7 @@ model += sum(end[job]for job in jobs)
 #Решение модели
 model.solve(PULP_CBC_CMD(timeLimit = 60))
 print(LpStatus[model.status])
+model.writeLP("1.txt")
 
 #Получение времени начала и кончания работ
 start_times = {job:start[job].value() for job in jobs}
@@ -85,11 +85,6 @@ fig, ax =plt.subplots(figsize=(10,6))
 for machine in sorted(machines):
     machines_tasks = [(job, m) for job, m in tasks.keys() if m == machine]  
     for job,m in machines_tasks:
-        # ax.plot( [start_times[job], end_times[job] ], # интервал времени
-        #         [machine,machine], # ось у - машина
-        #         linewidth = 6,
-        #         label = f"{job}")
-
         ax.barh(
             machine,
             end_times[job] - start_times[job],
