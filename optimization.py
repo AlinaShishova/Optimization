@@ -61,7 +61,8 @@ for (job, machine), (duration, dt_start, dt_end) in downtime.items():
     model+= start[job] >= dt_start
     model+=end[job]<=dt_end
 
-
+# model += start['J9'] >= 1
+# model += start['J17'] >=2
 # #Целевая функция 
 model += sum(end[job]for job in jobs)
 
