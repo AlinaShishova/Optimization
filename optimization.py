@@ -3,9 +3,9 @@ from pulp import  PULP_CBC_CMD, LpProblem, LpStatus, LpVariable, LpBinary,LpMini
 import matplotlib.pyplot as plt
 
 #Чтение Excel файла
-tasks_df = pd.read_excel("plan_data_new.xlsx", sheet_name="tasks")
-constr_df = pd.read_excel("plan_data_new.xlsx", sheet_name = "constr")
-downtime_df = pd.read_excel("plan_data_new.xlsx", sheet_name = "downtime")
+tasks_df = pd.read_excel("plan_data.xlsx", sheet_name="tasks")
+constr_df = pd.read_excel("plan_data.xlsx", sheet_name = "constr")
+downtime_df = pd.read_excel("plan_data.xlsx", sheet_name = "downtime")
 
 #Преобразование данных в подходящий формат
 tasks = {(row['job'], row['machine']): row['duration'] for _, row in tasks_df.iterrows()} #{(j1, r1): d1}
