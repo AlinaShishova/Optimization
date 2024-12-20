@@ -52,8 +52,8 @@ for machine in machines:
     # for job, m in machines_tasks:
     #     model+= machine_completion[machine]>= end[job]
 
-# model += start['J17'] >=35
-# model += start['J17'] <=35
+# model += start['J9'] >= 1
+# model += start['J17'] >=2
 # #Целевая функция 
 # model+= lpSum(machine_completion[machine]for machine in machines)
 model += sum(end[job]for job in jobs)
