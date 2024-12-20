@@ -107,7 +107,7 @@ for machine in sorted(machines):
 
 ax.set_xlabel("Время выполнения")
 ax.set_ylabel("Ресурсы")
-ax.set_xticks(range(0, int(max(end_times.values())) +5, 5))
+ax.set_xticks(range(0, int(max(end_times.values())) +10, 10))
 ax.set_yticks(sorted(machines))
 ax.grid(True, axis='x')
 plt.show()
