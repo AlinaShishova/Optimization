@@ -78,30 +78,95 @@ for job in jobs:
     print(f"job {job}: start = {start_times[job]}, end = {end_times[job]}")
 
 
+# Перерывы
+pause = {
+    "R3": [(10,20)],
+    "R2": [(5,10)]
+}
+
+
 #Построение графика
 fig, ax =plt.subplots(figsize=(10,6))
 
-#Добавляем задачи на график
-for machine in sorted(machines):
-    machines_tasks = [(job, m) for job, m in tasks.keys() if m == machine]  
-    for job,m in machines_tasks:
+#График с учетом перерывов
+for job,machine in tasks:
+    if machine in pause:
+        for start_pause, end_pause in pause[machine]:
+            #если работа начинается до простоя
+            if start_times[job]<start_pause:
+                # Разделяем работу на 2 части 
+                ax.barh(
+                    machine,
+                    start_pause - start_times[job],
+                    left = start_times[job],
+                    height=0.25,
+                    
+                )
+                ax.text(
+                 (start_times[job]+ start_pause - start_times[job])/2, #центр интервала
+                    machine,
+                    f"{job}.1",
+                    ha = "center",
+                    va = "center",
+                    color = "black",
+                    fontsize = 12
+                )
+               
+                ax.barh(
+                    machine,
+                    ((end_times[job]+(end_pause-start_pause)) - end_pause),
+                    left = end_pause,
+                    height=0.25,
+                    label = f"{job}.2"
+                )
+                ax.text(
+                 ((end_times[job]+(end_pause-start_pause)) + end_pause)/2, #центр интервала
+                    machine,
+                    f"{job}.2",
+                    ha = "center",
+                    va = "center",
+                    color = "black",
+                    fontsize = 12
+                )
+               
+            else:
+                # Работа начанается после перерыва или не перекрывает его
+                
+                ax.barh(
+                    machine,
+                    (end_times[job]+(end_pause-start_pause))- (start_times[job]+(end_pause-start_pause)),
+                    left = (start_times[job]+(end_pause-start_pause)),
+                    height=0.25,
+                    label = f"{job}"
+                )
+                ax.text(
+                 ((end_times[job]+(end_pause-start_pause)) + (start_times[job]+(end_pause-start_pause)))/2, #центр интервала
+                    machine,
+                    f"{job}",
+                    ha = "center",
+                    va = "center",
+                    color = "black",
+                    fontsize = 12
+                )
+
+    else:
+        # Если перерыва на машине нет , работа выаополняется нормально
         ax.barh(
-            machine,
-            end_times[job] - start_times[job],
-            left=start_times[job],
-            height=0.25,
-            label = f"{job}"
-        )
-        #Добавляем надписи к названиям работ
+                    machine,
+                    end_times[job]- start_times[job],
+                    left = start_times[job],
+                    height=0.25,
+                    label = f"{job}"
+                )
         ax.text(
-            (start_times[job]+end_times[job])/2, #центр интервала
-            machine,
-            job,
-            ha = "center",
-            va = "center",
-            color = "black",
-            fontsize = 12
-        )
+                 (end_times[job] + start_times[job])/2, #центр интервала
+                    machine,
+                    f"{job}",
+                    ha = "center",
+                    va = "center",
+                    color = "black",
+                    fontsize = 12
+                )
 
 
 ax.set_xlabel("Время выполнения")
