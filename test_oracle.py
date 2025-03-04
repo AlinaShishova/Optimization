@@ -7,9 +7,9 @@ from pulp import LpBinary, LpVariable, LpProblem, lpSum, LpStatus, LpMinimize, P
 oracledb.init_oracle_client(lib_dir = "C:\instanclient\instantclient_19_25")
 
 connection = oracledb.connect(
-    user="AMR",
-    password="AMR",
-    dsn = "10.124.12.2:1521/db1p"
+    user="111",
+    password="111",
+    dsn = "11.111.11.1:1521/db1p"
     )
 
 print("Successfully connected to Oracle Database")
